@@ -43,4 +43,3 @@ hello.foo8 = foo8
 print('中文测试')
 
 
-

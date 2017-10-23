@@ -237,9 +237,15 @@ class LAutoManager:
         if type(self.completions.get(project)) is dict:
             completions = []
             def _add(completion):
+                delete_items = []
                 for (file_name, ctx) in completion.items():
-                    for (trigger, contents) in ctx.items():
-                        completions.append({'contents': contents, 'trigger': trigger})
+                    if path.isfile(file_name):                      
+                        for (trigger, contents) in ctx.items():
+                            completions.append({'contents': contents, 'trigger': trigger})
+                    else:
+                        delete_items.append(file_name)
+                for item in delete_items:
+                    completion.pop(item)
             _add(self.completions[project])
             if project and self.completions.get(project+'0'):
                 _add(self.completions[project+'0'])
