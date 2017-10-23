@@ -151,12 +151,13 @@ class Parser:
             if node:
                 node = node.child
 
-    def do_parse(self, ctx):
+    def do_parse(self, ctx, ex = False):
         self.do_link(ctx)
         node = self.link2.head
         result = {}
         while node:
             if node.type == Node.TYPE_FUNCTION:
+                class_name = ''
                 func_name = ''
                 base_func_name = ''
                 if node.parent and node.parent.name == 'local':
@@ -164,13 +165,15 @@ class Parser:
                 elif node.parent and node.parent.name == '=':
                     parent = node.parent.parent
                     if parent and parent.parent and parent.parent.name == '.' and parent.parent.parent and (not parent.parent.parent.parent or parent.parent.parent.parent.name == Parser.CHAR_ENTER):
+                        class_name = parent.parent.parent.name
                         base_func_name = parent.name
                         func_name += parent.parent.parent.name + parent.parent.name + base_func_name
                         node = node.child
                         if node.name != '(':
                             continue
-                    elif parent and (not parent.parent or parent.parent.name == Parser.CHAR_ENTER):
-                        func_name += parent.name
+                    elif parent and (not parent.parent or parent.parent.name == Parser.CHAR_ENTER): 
+                        base_func_name = parent.name
+                        func_name += base_func_name
                         node = node.child
                         if node.name != '(':
                             continue
@@ -178,6 +181,7 @@ class Parser:
                         pass
                 else:
                     if node.child and node.child.child and node.child.child.child and node.child.child.child.child and node.child.child.child.child.name == '(':
+                        class_name = node.child.name
                         base_func_name = node.child.child.child.name
                         func_name += node.child.name + node.child.child.name + base_func_name
                         node = node.child.child.child.child.child
@@ -190,7 +194,7 @@ class Parser:
                 if func_name:
                     params = '('
                     func_name += '('
-                    sz = 0
+                    sz = 1
                     while node:
                         if node.name == ')':
                             params += ')'
@@ -214,8 +218,15 @@ class Parser:
                         node = node.child
                     if params == '(':
                         func_name += '...)'
-                        params += '${1:...})'
-                    result[func_name] = base_func_name + params
+                        params += '${2:...})'
+                    if class_name:
+                        result[func_name] = '${1:' + class_name + '}.' + base_func_name + params
+                    else:
+                        result[func_name] = base_func_name + params
+                    
+            elif ex and node.name == '=': 
+                if node.parent:
+                    result[node.parent.name] = node.parent.name
             if node:
                 node = node.child
         return result
@@ -286,7 +297,7 @@ class LAutoManager:
                 return True
         return False
 
-    def set_data(self, project, file_name, ctx):
+    def set_data(self, project, file_name, ctx, ex = False):
         if not ctx or ctx.find('function') == -1:
             return False
         if not self.completions.get(project):
@@ -294,7 +305,7 @@ class LAutoManager:
         self.completions[project][file_name] = {}
         completions = self.completions[project][file_name]
         parser = Parser()
-        result = parser.do_parse(ctx)
+        result = parser.do_parse(ctx, ex)
         for (trigger, contents) in result.items():
             completions[trigger] = contents
         return True
@@ -359,9 +370,20 @@ class LSublimeListener(sublime_plugin.EventListener):
             if lauto.init_data(project, project_path):
                 lauto.write_rule(project)
             else:
-                if self.project != project:
-                    lauto.write_rule(project)
-                    self.project = project
+                ctx = view.substr(sublime.Region(0, view.size()))
+                lauto.set_data(project, file_name, ctx, True)
+                lauto.write_rule(project)
+                # if self.project != project:
+                #     lauto.write_rule(project)
+                #     self.project = project
+
+    def on_deactivated_async(self, view):
+        file_name = view.file_name()
+        if lauto.is_valid_file(view.file_name()):
+            ctx = view.substr(sublime.Region(0, view.size()))
+            (project, project_path) = self.get_project_info()
+            lauto.set_data(project, file_name, ctx)
+            lauto.write_rule(project)
 
     def on_pre_save_async(self, view):
         file_name = view.file_name()
@@ -375,7 +397,7 @@ class LSublimeListener(sublime_plugin.EventListener):
             if project and not lauto.is_added_file(project, file_name):
                 ret = lauto.set_data(project+'0', file_name, ctx)
             else:
-                ret = lauto.set_data(project, file_name, ctx)
+                ret = lauto.set_data(project, file_name, ctx, True)
             if ret:
                 lauto.write_rule(project)
             self.pending -= 1
