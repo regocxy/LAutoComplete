@@ -1,0 +1,6 @@
+[
+    { "caption": "-"},
+	{ "caption": "LAuto Add Folder", "command": "l_auto_add_folder", "args": {"dirs": []} },
+    { "caption": "LAuto Remove Folder", "command": "l_auto_remove_folder", "args": {"dirs": []} },
+    { "caption": "-"}
+]
