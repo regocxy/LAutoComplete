@@ -14,12 +14,13 @@ class Node:
     (
         TYPE_NONE,
         TYPE_SEP,
+        TYPE_DIGIT,
         TYPE_WORD,
         TYPE_STR,
         TYPE_FUNCTION,
         TYPE_FUNCTION_NAME,
         TYPE_COMMIT
-    ) = range(0, 7)
+    ) = range(0, 8)
 
     def __init__(self, name='', type=TYPE_NONE):
         self.name = name
@@ -146,6 +147,8 @@ class Parser:
                 if node.name not in ignore:
                     if node.name == 'function':
                         self.link2.append(Node(node.name, Node.TYPE_FUNCTION))
+                    elif node.name.isdigit():
+                        self.link2.append(Node(node.name, Node.TYPE_DIGIT))
                     else:
                         self.link2.append(Node(node.name, node.type))
             if node:
@@ -228,7 +231,7 @@ class Parser:
                     else:
                         result[func_name] = base_func_name + params
                     
-            elif ex and node.type == Node.TYPE_WORD: 
+            elif ex and node.type == Node.TYPE_WORD:
                     result[node.name] = node.name
             if node:
                 node = node.child
@@ -272,7 +275,7 @@ class LAutoManager:
                 f.write(stream)
 
     def init_data(self, project, project_path):
-        if project and project_path and not self.completions.get(project):
+        if project and project_path and self.completions.get(project) is None:
             filepath = path.join(project_path, '.lauto')
             if path.isfile(filepath):
                 with codecs.open(filepath, 'r', 'utf-8') as f:
@@ -295,22 +298,21 @@ class LAutoManager:
         return False
 
     def is_added_file(self, project, file_name):
-        if self.completions.get(project):
-            if self.completions[project].get(file_name):
-                return True
+        if self.completions.get(project) and self.completions[project].get(file_name):
+            return True
         return False
 
-    def set_data(self, project, file_name, ctx, ex = False):
+    def set_data(self, project, file_name, ctx, check_word = False, force = False):
         if not ctx or ctx.find('function') == -1:
             return False
-        if project and not self.is_added_file(project, file_name):
+        if not force and project and not self.is_added_file(project, file_name):
             project += '0'
-        if not self.completions.get(project):
+        if self.completions.get(project) is None:
             self.completions[project] = {}
         self.completions[project][file_name] = {}
         completions = self.completions[project][file_name]
         parser = Parser()
-        result = parser.do_parse(ctx, ex)
+        result = parser.do_parse(ctx, check_word)
         for (trigger, contents) in result.items():
             completions[trigger] = contents
         return True
@@ -324,18 +326,20 @@ class LAutoManager:
                         if self.is_valid_file(file_name):
                             file_name = path.join(dirname, file_name)
                             with codecs.open(file_name, 'r', 'utf-8') as f:
-                                self.set_data(project, file_name, f.read())
+                                self.set_data(project, file_name, f.read(), force = True)
             self.write_rule(project)
             self.progress_bar.stop()
             sublime.status_message("Success to add_folder")
 
     def remove_folder(self, project, dirs):
+        if not self.completions.get(project):
+            return
         with self.lock:
             self.progress_bar.start(sublime.status_message)
             for d in dirs:
                 for (dirname, subdir, subfile) in os.walk(d):
                     for file_name in subfile:
-                        if self.is_valid_file(file_name) and self.completions.get(project):
+                        if self.is_valid_file(file_name):
                             file_name = path.join(dirname, file_name)
                             if self.completions[project].get(file_name):
                                 self.completions[project].pop(file_name)
@@ -363,13 +367,16 @@ class LSublimeListener(sublime_plugin.EventListener):
 
     def on_close(self, view):
         file_name = view.file_name()
-        if lauto.is_valid_file(view.file_name()):
+        if lauto.is_valid_file(file_name):
+            ctx = view.substr(sublime.Region(0, view.size()))
             (project, project_path) = self.get_project_info()
+            if lauto.set_data(project, file_name, ctx):
+                lauto.write_rule(project)
             lauto.save_data(project, project_path)
 
     def on_activated_async(self, view):
         file_name = view.file_name()
-        if lauto.is_valid_file(view.file_name()):
+        if lauto.is_valid_file(file_name):
             (project, project_path) = self.get_project_info()
             if lauto.init_data(project, project_path):
                 lauto.write_rule(project)
@@ -377,10 +384,10 @@ class LSublimeListener(sublime_plugin.EventListener):
                 ctx = view.substr(sublime.Region(0, view.size()))
                 if lauto.set_data(project, file_name, ctx, True):
                     lauto.write_rule(project)
-
+                
     def on_deactivated_async(self, view):
         file_name = view.file_name()
-        if lauto.is_valid_file(view.file_name()):
+        if lauto.is_valid_file(file_name):
             ctx = view.substr(sublime.Region(0, view.size()))
             (project, project_path) = self.get_project_info()
             if lauto.set_data(project, file_name, ctx):
