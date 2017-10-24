@@ -158,6 +158,7 @@ class Parser:
         while node:
             if node.type == Node.TYPE_FUNCTION:
                 class_name = ''
+                point_name = ''
                 func_name = ''
                 base_func_name = ''
                 if node.parent and node.parent.name == 'local':
@@ -182,8 +183,9 @@ class Parser:
                 else:
                     if node.child and node.child.child and node.child.child.child and node.child.child.child.child and node.child.child.child.child.name == '(':
                         class_name = node.child.name
+                        point_name = node.child.child.name
                         base_func_name = node.child.child.child.name
-                        func_name += node.child.name + node.child.child.name + base_func_name
+                        func_name += node.child.name + point_name + base_func_name
                         node = node.child.child.child.child.child
                     elif node.child and node.child.child and node.child.child.name == '(':
                         base_func_name = node.child.name
@@ -220,7 +222,7 @@ class Parser:
                         func_name += '...)'
                         params += '${2:...})'
                     if class_name:
-                        result[func_name] = '${1:' + class_name + '}.' + base_func_name + params
+                        result[func_name] = '${1:' + class_name + '}' + point_name + base_func_name + params
                     else:
                         result[func_name] = base_func_name + params
                     
@@ -345,7 +347,6 @@ class LSublimeListener(sublime_plugin.EventListener):
 
     def __init__(self):
         self.pending = 0
-        self.project = -1
 
     def on_hover(self, view, point, hover_zone):
         pass
@@ -373,9 +374,6 @@ class LSublimeListener(sublime_plugin.EventListener):
                 ctx = view.substr(sublime.Region(0, view.size()))
                 lauto.set_data(project, file_name, ctx, True)
                 lauto.write_rule(project)
-                # if self.project != project:
-                #     lauto.write_rule(project)
-                #     self.project = project
 
     def on_deactivated_async(self, view):
         file_name = view.file_name()
