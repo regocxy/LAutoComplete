@@ -226,9 +226,8 @@ class Parser:
                     else:
                         result[func_name] = base_func_name + params
                     
-            elif ex and node.name == '=': 
-                if node.parent:
-                    result[node.parent.name] = node.parent.name
+            elif ex and node.type == Node.TYPE_WORD: 
+                    result[node.name] = node.name
             if node:
                 node = node.child
         return result
