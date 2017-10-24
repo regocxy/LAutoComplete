@@ -303,6 +303,8 @@ class LAutoManager:
     def set_data(self, project, file_name, ctx, ex = False):
         if not ctx or ctx.find('function') == -1:
             return False
+        if project and not self.is_added_file(project, file_name):
+            project += '0'
         if not self.completions.get(project):
             self.completions[project] = {}
         self.completions[project][file_name] = {}
@@ -373,16 +375,16 @@ class LSublimeListener(sublime_plugin.EventListener):
                 lauto.write_rule(project)
             else:
                 ctx = view.substr(sublime.Region(0, view.size()))
-                lauto.set_data(project, file_name, ctx, True)
-                lauto.write_rule(project)
+                if lauto.set_data(project, file_name, ctx, True):
+                    lauto.write_rule(project)
 
     def on_deactivated_async(self, view):
         file_name = view.file_name()
         if lauto.is_valid_file(view.file_name()):
             ctx = view.substr(sublime.Region(0, view.size()))
             (project, project_path) = self.get_project_info()
-            lauto.set_data(project, file_name, ctx)
-            lauto.write_rule(project)
+            if lauto.set_data(project, file_name, ctx):
+                lauto.write_rule(project)
 
     def on_pre_save_async(self, view):
         file_name = view.file_name()
@@ -392,12 +394,7 @@ class LSublimeListener(sublime_plugin.EventListener):
             self.pending += 1
             ctx = view.substr(sublime.Region(0, view.size()))
             (project, project_path) = self.get_project_info()
-            ret = False
-            if project and not lauto.is_added_file(project, file_name):
-                ret = lauto.set_data(project+'0', file_name, ctx)
-            else:
-                ret = lauto.set_data(project, file_name, ctx, True)
-            if ret:
+            if lauto.set_data(project, file_name, ctx, True):
                 lauto.write_rule(project)
             self.pending -= 1
 
