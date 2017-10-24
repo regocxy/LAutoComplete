@@ -9,3 +9,4 @@ end
 function table:ha( ... )
     -- body
 end
+

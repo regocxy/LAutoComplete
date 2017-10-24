@@ -147,7 +147,7 @@ class Parser:
                     if node.name == 'function':
                         self.link2.append(Node(node.name, Node.TYPE_FUNCTION))
                     else:
-                        self.link2.append(Node(node.name, Node.TYPE_WORD))
+                        self.link2.append(Node(node.name, node.type))
             if node:
                 node = node.child
 
@@ -169,14 +169,16 @@ class Parser:
                         class_name = parent.parent.parent.name
                         base_func_name = parent.name
                         func_name += parent.parent.parent.name + parent.parent.name + base_func_name
-                        node = node.child
-                        if node.name != '(':
+                        if node.child and node.child.name == '(':
+                            node = node.child.child
+                        else:
                             continue
                     elif parent and (not parent.parent or parent.parent.name == Parser.CHAR_ENTER): 
                         base_func_name = parent.name
                         func_name += base_func_name
-                        node = node.child
-                        if node.name != '(':
+                        if node.child and node.child.name == '(':
+                            node = node.child.child
+                        else:
                             continue
                     else:
                         pass
