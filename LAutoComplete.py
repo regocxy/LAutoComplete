@@ -253,19 +253,19 @@ class LAutoManager:
     def write_rule(self, project):
         if type(self.completions.get(project)) is dict:
             completions = []
-            def _add(completion):
+            def _add(completion, cond):
                 delete_items = []
                 for (file_name, ctx) in completion.items():
-                    if path.isfile(file_name):                      
+                    if cond(file_name):
+                        delete_items.append(file_name)
+                    else:
                         for (trigger, contents) in ctx.items():
                             completions.append({'contents': contents, 'trigger': trigger})
-                    else:
-                        delete_items.append(file_name)
                 for item in delete_items:
                     completion.pop(item)
-            _add(self.completions[project])
+            _add(self.completions[project], lambda file_name: not path.isfile(file_name))
             if project and self.completions.get(project+'0'):
-                _add(self.completions[project+'0'])
+                _add(self.completions[project+'0'], lambda file_name: self.completions[project].get(file_name) or not path.isfile(file_name))
             tbl = {
                 'scope': 'source.lua',
                 'completions': completions
@@ -342,6 +342,7 @@ class LAutoManager:
                         if self.is_valid_file(file_name):
                             file_name = path.join(dirname, file_name)
                             if self.completions[project].get(file_name):
+                                print('del', path.basename(file_name))
                                 self.completions[project].pop(file_name)
             self.write_rule(project)
             self.progress_bar.stop()
@@ -365,16 +366,8 @@ class LSublimeListener(sublime_plugin.EventListener):
         project_path = info.get('project_path')
         return (project, project_path)
 
-    def on_close(self, view):
-        file_name = view.file_name()
-        if lauto.is_valid_file(file_name):
-            ctx = view.substr(sublime.Region(0, view.size()))
-            (project, project_path) = self.get_project_info()
-            if lauto.set_data(project, file_name, ctx):
-                lauto.write_rule(project)
-            lauto.save_data(project, project_path)
-
     def on_activated_async(self, view):
+        # print('on_activated_async')
         file_name = view.file_name()
         if lauto.is_valid_file(file_name):
             (project, project_path) = self.get_project_info()
@@ -392,6 +385,15 @@ class LSublimeListener(sublime_plugin.EventListener):
             (project, project_path) = self.get_project_info()
             if lauto.set_data(project, file_name, ctx):
                 lauto.write_rule(project)
+
+    def on_close(self, view):
+        file_name = view.file_name()
+        if lauto.is_valid_file(file_name):
+            ctx = view.substr(sublime.Region(0, view.size()))
+            (project, project_path) = self.get_project_info()
+            if lauto.set_data(project, file_name, ctx):
+                lauto.write_rule(project)
+            lauto.save_data(project, project_path)
 
     def on_pre_save_async(self, view):
         file_name = view.file_name()
