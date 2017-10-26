@@ -252,27 +252,28 @@ class LAutoManager:
 
     def write_rule(self, project):
         if type(self.completions.get(project)) is dict:
-            completions = []
-            def _add(completion, cond):
-                delete_items = []
-                for (file_name, ctx) in completion.items():
-                    if cond(file_name):
-                        delete_items.append(file_name)
-                    else:
-                        for (trigger, contents) in ctx.items():
-                            completions.append({'contents': contents, 'trigger': trigger})
-                for item in delete_items:
-                    completion.pop(item)
-            _add(self.completions[project], lambda file_name: not path.isfile(file_name))
-            if project and self.completions.get(project+'0'):
-                _add(self.completions[project+'0'], lambda file_name: self.completions[project].get(file_name) or not path.isfile(file_name))
-            tbl = {
-                'scope': 'source.lua',
-                'completions': completions
-            }
-            stream = json.dumps(tbl)
-            with codecs.open(self.filepath, 'w', 'utf-8') as f:
-                f.write(stream)
+            with self.lock:
+                completions = []
+                def _add(completion, cond):
+                    delete_items = []
+                    for (file_name, ctx) in completion.items():
+                        if cond(file_name):
+                            delete_items.append(file_name)
+                        else:
+                            for (trigger, contents) in ctx.items():
+                                completions.append({'contents': contents, 'trigger': trigger})
+                    for item in delete_items:
+                        completion.pop(item)
+                _add(self.completions[project], lambda file_name: not path.isfile(file_name))
+                if project and self.completions.get(project+'0'):
+                    _add(self.completions[project+'0'], lambda file_name: self.completions[project].get(file_name) or not path.isfile(file_name))
+                tbl = {
+                    'scope': 'source.lua',
+                    'completions': completions
+                }
+                stream = json.dumps(tbl)
+                with codecs.open(self.filepath, 'w', 'utf-8') as f:
+                    f.write(stream)
 
     def init_data(self, project, project_path):
         if project and project_path and self.completions.get(project) is None:
@@ -307,15 +308,16 @@ class LAutoManager:
             return False
         if not force and project and not self.is_added_file(project, file_name):
             project += '0'
-        if self.completions.get(project) is None:
-            self.completions[project] = {}
-        self.completions[project][file_name] = {}
-        completions = self.completions[project][file_name]
-        parser = Parser()
-        result = parser.do_parse(ctx, check_word)
-        for (trigger, contents) in result.items():
-            completions[trigger] = contents
-        return True
+        with self.lock:
+            if self.completions.get(project) is None:
+                self.completions[project] = {}
+            self.completions[project][file_name] = {}
+            completions = self.completions[project][file_name]
+            parser = Parser()
+            result = parser.do_parse(ctx, check_word)
+            for (trigger, contents) in result.items():
+                completions[trigger] = contents
+            return True
 
     def add_folder(self, project, dirs):
         with self.lock:
